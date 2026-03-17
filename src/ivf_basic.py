@@ -1,58 +1,45 @@
 import faiss
-import numpy as np
 import time
+from load_sift import read_fvecs, read_ivecs
 
-# dimension
-d = 64  
+def compute_recall(I, gt, k):
+    correct = 0
+    for i in range(len(I)):
+        correct += len(set(I[i][:k]) & set(gt[i][:k]))
+    return correct / (len(I) * k)
 
-# database size
-nb = 10000  
+print("Loading data...")
+xb = read_fvecs("data/sift/sift_base.fvecs")
+xq = read_fvecs("data/sift/sift_query.fvecs")
+gt = read_ivecs("data/sift/sift_groundtruth.ivecs")
+print("Data loaded.")
 
-# number of queries
-nq = 100  
+d = 128
+nlist = 4096
+nprobe = 50
+k = 10
 
-# number of clusters
-nlist = 100  
-
-# number of clusters to probe
-nprobe = 20 
-
-np.random.seed(42)
-
-# generate base vectors
-xb = np.random.random((nb, d)).astype('float32')
-
-# generate query vectors
-xq = np.random.random((nq, d)).astype('float32')
-
-# -----------------------------
-# Build IVF index
-# -----------------------------
-
-# coarse quantizer
+print("Building IVF index...")
 quantizer = faiss.IndexFlatL2(d)
-
-# IVF index
 index = faiss.IndexIVFFlat(quantizer, d, nlist)
 
-# train the index
+print("Training index...")
 index.train(xb)
 
-# add vectors
+print("Adding base vectors...")
 index.add(xb)
 
-# set nprobe
 index.nprobe = nprobe
 
-# -----------------------------
-# Search
-# -----------------------------
-
-k = 10  # top-k neighbors
-
+print("Running search...")
 start = time.time()
 D, I = index.search(xq, k)
 end = time.time()
 
-print("Search time:", end - start)
+print("Search time: {:.4f} seconds".format(end - start))
+
+recall = compute_recall(I, gt, k)
+print("Recall@{}: {:.4f}".format(k, recall))
+
 print("First query neighbors:", I[0])
+print("First query distances:", D[0])
